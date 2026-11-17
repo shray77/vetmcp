@@ -6,7 +6,9 @@
  * Инструменты: погода и тепловые стрессы (49 станций Ростовской обл.),
  * вероятностный веер двух ансамблей ECMWF (физический IFS + ИИ-модель AIFS),
  * ретро-проверка прогноза, окна риска ВПГП, сигналы отзывов/вспышек РФ,
- * мировые биоугрозы, дайджест ветеринарной науки.
+ * мировые биоугрозы, дайджест ветеринарной науки, эпидкарта вспышек РФ
+ * 2005→сегодня (ВетКарта), справочник ветпрепаратов ChEMBL + предсказания
+ * сродства Boltz-2 (VetInSilico).
  *
  * Транспорт: stdio, newline-delimited JSON-RPC 2.0 (транспорт MCP).
  * Версии протокола: 2024-11-05 / 2025-03-26 / 2025-06-18.
@@ -18,7 +20,7 @@
  */
 import { createInterface } from 'node:readline';
 
-export const SERVER_INFO = { name: 'vetmcp', version: '1.0.0' };
+export const SERVER_INFO = { name: 'vetmcp', version: '1.1.0' };
 
 const RAW = 'https://raw.githubusercontent.com/shray77';
 export const SOURCES = Object.freeze({
@@ -31,6 +33,9 @@ export const SOURCES = Object.freeze({
   recalls:    `${RAW}/vetrecall-site/main/signals.json`,
   biothreats: `${RAW}/biothreat-site/main/events.json`,
   digest:     `${RAW}/vetdigest-site/main/digest.json`,
+  epimap:     `${RAW}/vet-heatmap/main/public/data/outbreaks.json`,
+  chembl:     `${RAW}/vet-insilico/main/public/data/chembl-reference.json`,
+  boltz:      `${RAW}/vet-insilico/main/public/data/boltz-affinities.json`,
 });
 
 /* ─── кэш источников: TTL 5 мин, таймаут 15 с; fetcher инжектится в тестах ── */
@@ -74,6 +79,19 @@ export function vQuery(v) {
   if (v == null) return null;
   const s = String(v).trim().toLowerCase();
   return s === '' ? null : s.slice(0, 120);
+}
+export function vStatus(v) {
+  if (v == null) return null;
+  const s = String(v).trim().toLowerCase();
+  if (s === 'ongoing') return 'Ongoing';
+  if (s === 'resolved') return 'Resolved';
+  throw new Error('status: ожидается Ongoing (действующие) или Resolved (завершённые)');
+}
+export function vSince(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (/^\d{4}(-\d{2}-\d{2})?$/.test(s)) return s;
+  throw new Error('since: ожидается год "2024" или дата "2024-06-01"');
 }
 
 const thiZone = (t) => (t >= 80 ? 'сильный стресс' : t >= 72 ? 'тепловой стресс' : t >= 68 ? 'лёгкий стресс' : 'комфорт');
@@ -307,6 +325,112 @@ export const TOOLS = [
         title: x.title, impact: x.impact, takeaways: x.takeaways, url: x.url,
       }));
       return { generatedAt: D.generated_at, total: (D.items || []).length, shown: items.length, filtered_by: q || null, items };
+    },
+  },
+  {
+    name: 'vet_epimap',
+    description: 'Эпидкарта вспышек карантинных болезней животных РФ (ВетКарта): события WAHIS+ФСВПС 2005→сегодня (бешенство, лейкоз, бруцеллёз, АЧС, ящур и др.). Без фильтров — сводка по стране (топ болезней, динамика по годам, округа); с фильтрами — выборка и свежие события. Обновление 4 раза в сутки.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        disease: { type: 'string', description: 'фильтр по болезни — имя или ключ (например, "бешенство", "asf", "африканская чума")' },
+        region: { type: 'string', description: 'фильтр по региону — подстрока (например, "Ростов", "Амурская")' },
+        federal_district: { type: 'string', description: 'фильтр по федеральному округу (ЦФО, ЮФО, СФО, ДФО, ПФО, УрФО, СЗФО, СКФО)' },
+        status: { type: 'string', description: 'Ongoing — действующие, Resolved — завершённые' },
+        since: { type: 'string', description: 'только события с этой даты: год "2024" или дата "2024-06-01"' },
+        limit: { type: 'integer', description: 'сколько событий показать (1–50, по умолчанию 10)' },
+      },
+    },
+    async run(args, cache) {
+      const D = await cache.get('epimap');
+      const all = (D.outbreaks || []).filter((x) => x && x.date);
+      if (!all.length) throw new Error('срез пуст — источник обновляется, попробуйте позже');
+      const dis = vQuery(args.disease);
+      const reg = vQuery(args.region);
+      const fd = vQuery(args.federal_district);
+      const status = vStatus(args.status);
+      const since = vSince(args.since);
+      const limit = vLimit(args.limit);
+      let sel = all;
+      if (dis) sel = sel.filter((x) => (String(x.disease || '') + ' ' + String(x.disease_key || '')).toLowerCase().includes(dis));
+      if (reg) sel = sel.filter((x) => String(x.region || '').toLowerCase().includes(reg));
+      if (fd) sel = sel.filter((x) => String(x.federal_district || '').toLowerCase().includes(fd));
+      if (status) sel = sel.filter((x) => String(x.status || '') === status);
+      if (since) sel = sel.filter((x) => String(x.date) >= since);
+      const tally = (rows, key) => Object.entries(rows.reduce((m, x) => { const k = x[key] || '—'; m[k] = (m[k] || 0) + 1; return m; }, {}))
+        .sort((a, b) => b[1] - a[1]);
+      const years = tally(sel, 'date').map(([y, n]) => [y.slice(0, 4), n])
+        .reduce((m, [y, n]) => { m[y] = (m[y] || 0) + n; return m; }, {});
+      return {
+        updated: D.updated, sources: D.sources, total_in_dataset: D.total_outbreaks ?? all.length,
+        filters: { disease: dis, region: reg, federal_district: fd, status, since },
+        matched: sel.length,
+        ongoing: sel.filter((x) => x.status === 'Ongoing').length,
+        top_diseases: tally(sel, 'disease').slice(0, 8).map(([disease, n]) => ({ disease, n })),
+        by_year_recent: Object.entries(years).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 8),
+        by_district: tally(sel, 'federal_district').slice(0, 8).map(([district, n]) => ({ district, n })),
+        items: [...sel].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, limit).map((x) => ({
+          date: x.date, disease: x.disease, disease_key: x.disease_key, group: x.disease_group || null,
+          region: x.region, district: x.federal_district || null, status: x.status, species: x.species || null,
+          cases: x.cases || 0, deaths: x.deaths || 0, source: x.source, url: x.source_url || null,
+        })),
+        note: 'ВетКарта: вспышки карантинных болезней животных РФ, WAHIS+ФСВПС, 2005→сегодня; date — дата регистрации события; координаты и карта — на витрине',
+      };
+    },
+  },
+  {
+    name: 'vet_drug_reference',
+    description: 'Справочник ветеринарных препаратов (VetInSilico): свойства 180+ молекул из среза ChEMBL (MW, logP, PSA, нарушения Липинского, фаза, механизмы действия) и предсказанные аффинности Boltz-2 для пар препарат–мишень. Без inn — сводка со списком предсказаний; с inn — карточки препаратов.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        inn: { type: 'string', description: 'название или начало названия препарата латиницей (например, "amox", "rimantadine"); без него — сводка' },
+        limit: { type: 'integer', description: 'сколько препаратов (1–50, по умолчанию 10)' },
+      },
+    },
+    async run(args, cache) {
+      const C = await cache.get('chembl');
+      const B = await cache.get('boltz');
+      const drugs = (C.drugs || []).filter(Boolean);
+      if (!drugs.length) throw new Error('срез ChEMBL пуст — источник обновляется, попробуйте позже');
+      const pairs = (B.pairs || []).filter(Boolean);
+      const limit = vLimit(args.limit);
+      const inn = vQuery(args.inn);
+      const r2 = (x) => (x == null || Number.isNaN(Number(x)) ? null : Math.round(Number(x) * 100) / 100);
+      const affOf = (p) => ({
+        inn: p.inn, target: p.target_name, target_id: p.target_id, pdb: p.pdb_id || null,
+        ic50_um_est: r2(p.ic50_um_est), delta_g_kcal_mol: r2(p.delta_g_kcal_mol),
+        confidence: r2(p.confidence && p.confidence.confidence_score), status: p.status,
+        reference_ic50_um: (p.reference && p.reference.ic50_um) || null,
+      });
+      const base = {
+        chembl_version: C.version, chembl_updated: C.generated,
+        boltz: { model: B.model, updated: B.generated, pairs: pairs.length },
+      };
+      if (inn != null) {
+        const found = drugs.filter((x) => String(x.inn || '').toLowerCase().includes(inn) || String(x.pref_name || '').toLowerCase().includes(inn));
+        if (!found.length) throw new Error(`препарат не найден: ${args.inn} (поиск по INN латиницей, например "amox"; без inn — сводка со списком)`);
+        return {
+          ...base, matched: found.length,
+          items: found.slice(0, limit).map((d) => {
+            const pr = d.properties || {};
+            return {
+              inn: d.inn, chembl_id: d.chembl_id, type: d.molecule_type, max_phase: d.max_phase,
+              first_approval: d.first_approval ?? null, oral: d.oral ?? null, parenteral: d.parenteral ?? null,
+              withdrawn: !!d.withdrawn_flag,
+              properties: { MW: pr.full_mwt ?? null, alogp: pr.alogp ?? null, HBA: pr.hba ?? null, HBD: pr.hbd ?? null, PSA: pr.psa ?? null, Ro5_violations: pr.num_ro5_violations ?? null },
+              mechanisms: (d.mechanisms || []).slice(0, 3).map((m) => `${m.action_type} → ${m.target_name}`),
+              boltz_affinity: pairs.filter((p) => String(p.inn || '').toLowerCase() === String(d.inn || '').toLowerCase()).map(affOf),
+            };
+          }),
+          note: 'меньше IC50 / более отрицательный dG = сильнее связывание (Boltz-2 affinity head); свойства считаны RDKit по каноническим структурам ChEMBL',
+        };
+      }
+      return {
+        ...base, drugs_total: drugs.length,
+        affinity_predictions: pairs.map(affOf),
+        note: 'ChEMBL-срез ветеринарных препаратов + предсказания сродства Boltz-2; срезы обновляет CI VetInSilico (ChEMBL — еженедельно); задайте inn для карточки препарата',
+      };
     },
   },
 ];
