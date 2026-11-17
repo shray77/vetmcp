@@ -1,0 +1,33 @@
+name: vetmcp-gate
+
+# Гейт MCP-сервера: протокол (initialize/tools) и все 8 инструментов на
+# фикстурах реальной формы данных. Наследие Task 174 — гейт в CI с первого дня.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  known-answers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Протокол + инструменты (16 known-answer)
+        run: node --test tests/vetmcp.test.mjs
+      - name: Смоук stdio (initialize → tools/list на живом сервере)
+        run: |
+          printf '%s\n%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | node vetmcp.mjs > /tmp/mcp_out.json
+          node -e "
+            const lines = require('fs').readFileSync('/tmp/mcp_out.json','utf8').trim().split('\n').map(JSON.parse);
+            if (lines[0].result.serverInfo.name !== 'vetmcp') throw new Error('нет serverInfo');
+            if (lines[1].result.tools.length !== 8) throw new Error('tools != 8: ' + lines[1].result.tools.length);
+            console.log('смоук OK: initialize +', lines[1].result.tools.length, 'инструментов');
+          "
