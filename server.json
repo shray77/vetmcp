@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.shray77/vetmcp",
   "title": "VetMCP",
-  "description": "Veterinary medicine and epidemiology for AI agents: livestock heat stress (THI/THIadj, 49 stations), 48 h forecast, probabilistic 7-day fan from two ECMWF ensembles (IFS + AIFS), avian influenza risk windows, world bioterror watch, animal disease outbreak surveillance in Russia 2005-today (WAHIS+FSVPS), veterinary science digest, drug reference (ChEMBL properties + Boltz-2 affinities). 10 tools in Russian.",
+  "description": "Veterinary medicine and epidemiology: heat stress (THI), avian flu, outbreaks in Russia, drugs.",
   "version": "1.1.0",
   "repository": {
     "url": "https://github.com/shray77/vetmcp",
