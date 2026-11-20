@@ -20,7 +20,9 @@ mcpgate.ru (Союзтелеком, ~130 серверов, 14 бизнес-ро�
 - **Официальный реестр MCP** — `io.github.shray77/vetmcp`: MCPB-бандл
   `vetmcp.mcpb` ассетом релиза v1.1.0, публикация из CI по OIDC
   (`.github/workflows/publish-mcp.yml`, без токенов в репо).
-- **awesome-mcp-servers** — категория Biology, Medicine and Bioinformatics.
+  [Запись в реестре (API)](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.shray77%2Fvetmcp/versions/1.1.0).
+- **awesome-mcp-servers** — категория Biology, Medicine and Bioinformatics
+  ([PR №20138](https://github.com/punkpeye/awesome-mcp-servers/pull/20138)).
 - **mcpgate.ru** и **mcp-catalog.ru** — заявки в русскоязычные каталоги
   (у обоих сабмит только через поддержку).
 
