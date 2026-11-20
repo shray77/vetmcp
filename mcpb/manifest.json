@@ -1,0 +1,25 @@
+{
+  "manifest_version": "0.3",
+  "name": "vetmcp",
+  "display_name": "VetMCP",
+  "version": "1.1.0",
+  "description": "Ветеринарная медицина и эпидемиология для ИИ-агентов: 10 инструментов на живых данных.",
+  "long_description": "Первый ветеринарный MCP-сервер в России. Инструменты: тепловой стресс КРС (THI/THIadj, 49 станций Ростовской области), прогноз 48 ч, вероятностный веер двух ансамблей ECMWF (IFS + AIFS), окна риска гриппа птиц, мировые биоугрозы, вспышки карантинных болезней животных РФ 2005→сегодня (WAHIS+ФСВПС), дайджест ветеринарной науки, справочник ветпрепаратов (ChEMBL + аффинности Boltz-2). Ноль зависимостей, Node ≥ 20, только чтение публичных данных.",
+  "author": {
+    "name": "shray77",
+    "url": "https://shray77.github.io/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shray77/vetmcp.git"
+  },
+  "homepage": "https://shray77.github.io/",
+  "server": {
+    "type": "node",
+    "entry_point": "server/vetmcp.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/vetmcp.mjs"]
+    }
+  }
+}

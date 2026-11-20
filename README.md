@@ -4,6 +4,26 @@ Model Context Protocol-сервер: живые данные витрин эко
 (Claude Desktop, Cursor, Cline и любые MCP-клиенты). Ноль зависимостей — Node ≥ 20,
 единый файл `vetmcp.mjs`, гейт 20 known-answer в CI.
 
+## Первый ветеринарный MCP-сервер в РФ
+
+Проверено 20.11.2026. В русскоязычных каталогах MCP-серверов ветеринарии нет:
+mcpgate.ru (Союзтелеком, ~130 серверов, 14 бизнес-ролей) и mcp-catalog.ru (Atomno,
+3176 серверов, 27 категорий) — ноль ветеринарных записей и самой категории;
+полнотекстовый поиск ветеринаpных MCP-серверов на русском тоже пуст. В мире
+ветеринарные MCP существуют (интеграции ezyVet, Pet Care AI) — поэтому статус
+сформулирован точно: **первый в России**, а не «в мире». Даты фиксируют листинги
+ниже и веб-архив; если найдётся более ранний российский ветеринарный MCP —
+статус будет переформулирован, это условие честности.
+
+## Листинги
+
+- **Официальный реестр MCP** — `io.github.shray77/vetmcp`: MCPB-бандл
+  `vetmcp.mcpb` ассетом релиза v1.1.0, публикация из CI по OIDC
+  (`.github/workflows/publish-mcp.yml`, без токенов в репо).
+- **awesome-mcp-servers** — категория Biology, Medicine and Bioinformatics.
+- **mcpgate.ru** и **mcp-catalog.ru** — заявки в русскоязычные каталоги
+  (у обоих сабмит только через поддержку).
+
 ## Инструменты (10)
 
 | Инструмент | Что даёт | Источник (обновление) |
@@ -24,7 +44,12 @@ Model Context Protocol-сервер: живые данные витрин эко
 
 ## Подключение
 
-**Claude Desktop** (`claude_desktop_config.json` → `mcpServers`):
+**Один клик (.mcpb)** — скачайте `vetmcp.mcpb` с
+[релиза v1.1.0](https://github.com/shray77/vetmcp/releases/tag/v1.1.0) и откройте
+файл — Claude Desktop установит расширение сам (Settings → Extensions). Нужен
+установленный Node ≥ 20.
+
+**Из клона** — Claude Desktop (`claude_desktop_config.json` → `mcpServers`):
 
 ```json
 {
@@ -71,4 +96,16 @@ JSON-RPC-слой (initialize/ping/notifications/−32601/−32602), все 10 �
 Данные «как есть», не ветеринарная консультация; первоисточники — на витринах.
 
 Лицензия MIT. Сборка: ИИ-агент экосистемы (Tasks 250, 252 — v1.1.0: эпикарта и
-справочник препаратов), гейты зелёные.
+справочник препаратов; Task 254 — реестр MCP, MCPB-бандл, листинги), гейты зелёные.
+
+## English (for aggregators)
+
+**VetMCP** — the first veterinary MCP server in Russia. 10 tools on live data
+from the open shray77 ecosystem: livestock heat stress (THI/THIadj, 49 stations of
+the Rostov region), 48 h forecasts, probabilistic 7-day fans from two ECMWF
+ensembles (physical IFS + AI model AIFS, 50 members each), avian influenza risk
+windows, world bioterror watch, animal disease outbreak surveillance in Russia
+2005→today (WAHIS+FSVPS), veterinary science digest, and a veterinary drug
+reference (ChEMBL properties + Boltz-2 predicted affinities). Zero dependencies,
+single `vetmcp.mjs`, Node ≥ 20, stdio transport, read-only public data. Tool
+descriptions are in Russian. MIT license.

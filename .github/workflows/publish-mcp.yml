@@ -1,0 +1,60 @@
+name: publish-mcp-registry
+
+# Публикация сервера в официальный реестр MCP (registry.modelcontextprotocol.io).
+# Пакет — MCPB-бандл с релиза (registryType: mcpb в server.json), поэтому
+# npm-этапов нет. Аутентификация — GitHub OIDC (id-token: write), без секретов:
+# реестр сверяет namespace io.github.shray77/* с владельцем репозитория.
+# Ручной запуск — workflow_dispatch; на будущее — автоматом по тегу v*.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC для mcp-publisher login github-oidc
+      contents: read
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Гейт перед публикацией (20 known-answer)
+        run: node --test tests/vetmcp.test.mjs
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Скачать и верифицировать mcp-publisher
+        run: |
+          set -euo pipefail
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          archive="mcp-publisher_${os}_${arch}.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+
+      - name: Аутентификация в реестре (OIDC, без токенов)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Опубликовать сервер (server.json → io.github.shray77/vetmcp)
+        run: ./mcp-publisher publish
